@@ -1,0 +1,9 @@
+[build]
+  command = "pnpm run build"
+  publish = "dist"
+
+# 這一部分就是解決 404 的關鍵
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
