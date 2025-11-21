@@ -9,7 +9,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
-// Mock Data: 這裡定義了演示模式下對應的結果圖
+// Mock Data
 const mockProducts = [
   { 
     id: 1, 
@@ -17,8 +17,7 @@ const mockProducts = [
     price: 89.99, 
     image: "https://space.coze.cn/api/coze_space/gen_image?image_size=landscape_4_3&prompt=Silk%20scarf%20on%20transparent%20background&sign=32b32d1fa6be95be0954955b9c5839c2", 
     category: "Accessories",
-    // 演示模式專用結果圖
-    resultImage: "/images/results/img1.png" 
+    resultImage: "/images/results/img1.png" // Demo result
   },
   { 
     id: 2, 
@@ -71,13 +70,12 @@ const AITryOnPage: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [isGeneratingAiTryOn, setIsGeneratingAiTryOn] = useState(false);
   const [aiResultImage, setAiResultImage] = useState<string>('');
-  
-  // 🔥 新增：演示模式狀態
   const [isDemoMode, setIsDemoMode] = useState(false);
   
   const currentUserImage = userImages[currentImageIndex];
   const filteredProducts = mockProducts.filter(p => selectedCategory === "All" || p.category === selectedCategory);
 
+  // Display Logic: AI Result > Original Image
   const displayImage = aiResultImage || currentUserImage;
 
   const resetAllSelections = () => {
@@ -85,7 +83,7 @@ const AITryOnPage: React.FC = () => {
     setAiResultImage('');
   };
 
-  // --- 1. 點擊 Demo 按鈕：加載圖片並開啟 Demo 模式 ---
+  // --- 1. Demo Image Loader ---
   const handleLoadDemoImage = async () => {
     const demoImagePath = "/images/results/example.jpg"; 
     try {
@@ -102,18 +100,16 @@ const AITryOnPage: React.FC = () => {
           return updated;
         });
         resetAllSelections();
-        
-        // 🔥 開啟演示模式
-        setIsDemoMode(true); 
-        toast.success("Demo Mode Activated (Fast Generation)");
+        setIsDemoMode(true); // Enable Demo Mode
+        toast.success("Demo Mode Activated");
       };
       reader.readAsDataURL(blob);
     } catch {
-      toast.error("Failed to load demo image (check public folder).");
+      toast.error("Failed to load demo image.");
     }
   };
 
-  // --- 2. 上傳圖片：關閉 Demo 模式，使用真實 AI ---
+  // --- 2. Image Upload ---
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return;
     const files = Array.from(e.target.files);
@@ -131,10 +127,8 @@ const AITryOnPage: React.FC = () => {
               return updated;
             });
             resetAllSelections();
-            
-            // 🔥 關閉演示模式，切換回真實 AI
-            setIsDemoMode(false);
-            toast.success(`Uploaded! Switching to Real AI Mode.`);
+            setIsDemoMode(false); // Switch to Real AI Mode
+            toast.success(`Uploaded! Switching to Real AI.`);
           }
         }
       };
@@ -165,7 +159,7 @@ const AITryOnPage: React.FC = () => {
     resetAllSelections();
   };
 
-  // --- 3. 試穿邏輯：區分 Demo 和 真實 ---
+  // --- 3. Core Try-On Logic ---
   const handleProductSelect = async (product: any) => {
     if (!currentUserImage) return toast.error("Please upload a photo first!");
 
@@ -173,24 +167,26 @@ const AITryOnPage: React.FC = () => {
     setAiResultImage(''); 
     setSelectedProduct(product);
     
-    // *** 分支 A：演示模式 (快速、穩定、不調用後端) ***
+    // A. Demo Mode Logic
     if (isDemoMode) {
-        toast.info(`Generating preview for ${product.name}...`);
-        
-        // 模擬網絡延遲 (1.5秒)，讓演示看起來像是在計算，而不是假得瞬間出來
+        toast.info(`Generating preview...`);
         setTimeout(() => {
-            // 直接使用預設的本地結果圖
             setAiResultImage(product.resultImage);
             setIsGeneratingAiTryOn(false);
             toast.success("Try-On Successful! (Demo)");
         }, 1500);
-        return; // 結束函數，不跑下面的後端邏輯
+        return;
     }
 
-    // *** 分支 B：真實模式 (調用後端) ***
+    // B. Real AI Logic
     toast.info(`Designing your look with AI... (Wait ~30s)`);
 
     try {
+      // 🔥 Determine Backend URL based on Environment
+      const API_BASE = import.meta.env.DEV 
+          ? 'http://localhost:3001' 
+          : 'https://silk-garden-api.onrender.com';
+
       const userBlob = await (await fetch(currentUserImage)).blob();
       const formData = new FormData();
       formData.append('human_img', userBlob, 'human.jpg');
@@ -205,7 +201,9 @@ const AITryOnPage: React.FC = () => {
       formData.append('prompt', prompt);
       formData.append('category', category);
 
-      const res = await fetch('http://localhost:3001/api/try-on', {
+      console.log(`Sending request to ${API_BASE}/api/try-on...`);
+
+      const res = await fetch(`${API_BASE}/api/try-on`, {
         method: 'POST',
         body: formData,
       });
@@ -216,9 +214,17 @@ const AITryOnPage: React.FC = () => {
       let url = Array.isArray(data.resultUrl) ? data.resultUrl[0] : data.resultUrl;
       if (!url) throw new Error('Backend returned no image URL/Data.');
 
-      if (url.startsWith('/')) url = `http://localhost:3001${url}`;
-      if (url.startsWith('http')) url = `${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`;
+      // Handle relative paths (prepend API_BASE)
+      if (url.startsWith('/')) {
+        url = `${API_BASE}${url}`;
+      }
+      
+      // Handle caching for remote URLs
+      if (url.startsWith('http')) {
+         url = `${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`;
+      }
 
+      // Preload Image
       const img = new Image();
       img.onload = () => {
         setAiResultImage(url);
@@ -292,7 +298,7 @@ const AITryOnPage: React.FC = () => {
                 </button>
               </div>
               
-              {/* CANVAS */}
+              {/* CANVAS CONTAINER */}
               <div 
                 className={`relative w-full rounded-xl overflow-hidden border-2 border-dashed border-gray-200 transition-all duration-500 ${!currentUserImage ? 'h-[500px] bg-gray-50' : 'border-none bg-black'}`}
               >
@@ -345,7 +351,7 @@ const AITryOnPage: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Controls */}
+                    {/* Hover Controls */}
                     {!isGeneratingAiTryOn && (
                         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 px-6 py-3 rounded-full z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 shadow-xl" style={styles.backdrop}>
                             {userImages.length > 1 && (
@@ -363,7 +369,7 @@ const AITryOnPage: React.FC = () => {
                 )}
               </div>
               
-              {/* Action Buttons */}
+              {/* Footer Buttons */}
               {currentUserImage && (
                 <div className="flex gap-4 mt-6">
                   <button 
