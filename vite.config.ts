@@ -1,16 +1,17 @@
-/** WARNING: DON'T EDIT THIS FILE */
-/** WARNING: DON'T EDIT THIS FILE */
-/** WARNING: DON'T EDIT THIS FILE */
-
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-import tsconfigPaths from "vite-tsconfig-paths";
-
-function getPlugins() {
-  const plugins = [react(), tsconfigPaths()];
-  return plugins;
-}
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import path from 'path'
 
 export default defineConfig({
-  plugins: getPlugins(),
-});
+  plugins: [react()],
+  // 🔥 關鍵：這裡必須是 '/'，不能是 './'
+  base: '/', 
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
+  build: {
+    outDir: 'dist',
+  }
+})
